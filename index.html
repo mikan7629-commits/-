@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#F0A868">
+<title>ぽち — やさしいタイムカード</title>
+<style>
+  :root{
+    --coral:#F0A868;       /* さんご〜やまぶき */
+    --coral-deep:#E08C4A;
+    --cream:#FFF7EC;       /* 背景の生成り */
+    --card:#FFFFFF;
+    --brown:#8B5E3C;       /* フクロウの羽 */
+    --brown-soft:#C89B6E;
+    --gold:#F2B705;        /* 金色の目 */
+    --ink:#5B4636;         /* 文字（やわらかい茶） */
+    --ink-soft:#A8917B;
+    --line:#F0E3D2;
+    --shadow:0 6px 20px rgba(160,110,60,.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+    background:linear-gradient(170deg,#FFF7EC 0%,#FDEBD3 100%);
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;justify-content:center;
+    padding:20px 16px 40px;
+  }
+  .app{width:100%;max-width:420px;}
+
+  /* ヘッダー */
+  .head{text-align:center;margin-bottom:14px;}
+  .brand{font-size:15px;letter-spacing:.15em;color:var(--coral-deep);font-weight:700;}
+  .date{font-size:22px;font-weight:700;margin-top:2px;}
+  .weekday{font-size:14px;color:var(--ink-soft);}
+
+  /* フクロウ */
+  .owl-wrap{display:flex;flex-direction:column;align-items:center;margin:6px 0 14px;}
+  .owl{width:120px;height:120px;filter:drop-shadow(0 5px 8px rgba(139,94,60,.25));transition:transform .3s;}
+  img.owl{object-fit:contain;}
+  .owl:active{transform:scale(.96);}
+  .speech{
+    margin-top:10px;background:var(--card);border-radius:16px;
+    padding:12px 18px;box-shadow:var(--shadow);font-size:15px;font-weight:600;
+    position:relative;max-width:300px;text-align:center;line-height:1.5;
+  }
+  .speech:before{
+    content:"";position:absolute;top:-8px;left:50%;transform:translateX(-50%);
+    border-left:8px solid transparent;border-right:8px solid transparent;
+    border-bottom:9px solid var(--card);
+  }
+  .owl-mood{font-size:12px;color:var(--ink-soft);margin-top:8px;}
+
+  /* 打刻ボタン */
+  .stamps{display:flex;flex-direction:column;gap:12px;margin-top:6px;}
+  .stamp{
+    background:var(--card);border-radius:18px;padding:16px 18px;
+    box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;
+  }
+  .stamp .ico{font-size:26px;width:34px;text-align:center;}
+  .stamp .label{flex:1;}
+  .stamp .name{font-size:17px;font-weight:700;}
+  .stamp .sub{font-size:13px;color:var(--ink-soft);margin-top:2px;min-height:16px;}
+  .btn{
+    border:none;border-radius:14px;padding:12px 20px;font-size:16px;font-weight:700;
+    background:var(--coral);color:#fff;box-shadow:0 4px 0 var(--coral-deep);
+    cursor:pointer;transition:transform .08s, box-shadow .08s;font-family:inherit;
+    min-width:96px;
+  }
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--coral-deep);}
+  .btn.done{background:#EFE1CE;color:var(--brown);box-shadow:0 4px 0 #DDCBB2;}
+  .btn.working{background:var(--brown);box-shadow:0 4px 0 #6E4a2e;}
+  .undo{background:none;border:none;color:var(--ink-soft);font-size:12px;
+    text-decoration:underline;cursor:pointer;margin-top:4px;padding:2px 0;font-family:inherit;}
+
+  /* リズム帯 */
+  .rhythm{margin-top:22px;background:var(--card);border-radius:18px;
+    padding:16px 18px;box-shadow:var(--shadow);}
+  .rhythm h2{font-size:14px;margin:0 0 12px;color:var(--coral-deep);letter-spacing:.08em;}
+  .timeline{list-style:none;margin:0;padding:0;}
+  .timeline li{display:flex;align-items:center;gap:10px;padding:7px 0;
+    border-bottom:1px dashed var(--line);font-size:15px;}
+  .timeline li:last-child{border-bottom:none;}
+  .timeline .t{font-variant-numeric:tabular-nums;font-weight:700;color:var(--brown);width:52px;}
+  .empty{color:var(--ink-soft);font-size:14px;text-align:center;padding:10px 0;line-height:1.6;}
+
+  .foot{text-align:center;margin-top:20px;font-size:11px;color:var(--ink-soft);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="head">
+    <div class="brand">ぽち</div>
+    <div class="date" id="date">--</div>
+    <div class="weekday" id="weekday"></div>
+  </div>
+
+  <div class="owl-wrap">
+    <div id="owl-holder"></div>
+    <div class="speech" id="speech">こんにちは。ぽちだよ</div>
+    <div class="owl-mood" id="mood"></div>
+  </div>
+
+  <div class="stamps">
+    <div class="stamp">
+      <div class="ico">☀️</div>
+      <div class="label">
+        <div class="name">起床</div>
+        <div class="sub" id="wake-sub">まだだよ</div>
+      </div>
+      <div style="text-align:center;">
+        <button class="btn" id="wake-btn" onclick="toggleWake()">押す</button>
+        <div><button class="undo" id="wake-undo" style="display:none" onclick="clearWake()">消す</button></div>
+      </div>
+    </div>
+
+    <div class="stamp">
+      <div class="ico">💻</div>
+      <div class="label">
+        <div class="name">作業</div>
+        <div class="sub" id="work-sub">きょうはまだ</div>
+      </div>
+      <div style="text-align:center;">
+        <button class="btn" id="work-btn" onclick="toggleWork()">はじめる</button>
+      </div>
+    </div>
+
+    <div class="stamp">
+      <div class="ico">🌙</div>
+      <div class="label">
+        <div class="name">就寝</div>
+        <div class="sub" id="sleep-sub">まだだよ</div>
+      </div>
+      <div style="text-align:center;">
+        <button class="btn" id="sleep-btn" onclick="toggleSleep()">押す</button>
+        <div><button class="undo" id="sleep-undo" style="display:none" onclick="clearSleep()">消す</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rhythm">
+    <h2>── きょうのリズム帯 ──</h2>
+    <ul class="timeline" id="timeline"></ul>
+  </div>
+
+  <div class="foot">
+    記録はこの端末の中だけに保存されます。<br>
+    ノルマも目標時間もありません。押せた日を、そっと肯定するアプリです。
+  </div>
+</div>
+
+<script>
+/* ================= ぽち — やさしいタイムカード =================
+   ・データは localStorage のみ（端末内・外部送信なし）
+   ・「1日」の区切りは朝4時。深夜0〜4時の打刻は前日に入る。
+   ・作業は はじめる/おわる のトグル。押し忘れても責めない。
+================================================================= */
+
+const STORE_KEY = "poti_timecard_v1";
+
+/* --- 論理的な「きょう」（朝4時始まり） --- */
+function logicalDate(d = new Date()){
+  const x = new Date(d);
+  if (x.getHours() < 4) x.setDate(x.getDate() - 1); // 深夜は前日扱い
+  return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+}
+function fmtTime(ts){
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* --- 保存・読み込み --- */
+function loadAll(){
+  try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+  catch(e){ return {}; }
+}
+function saveAll(all){ localStorage.setItem(STORE_KEY, JSON.stringify(all)); }
+function today(){
+  const all = loadAll();
+  const key = logicalDate();
+  if(!all[key]) all[key] = { wake:null, work:[], sleep:null };
+  return { all, key, day: all[key] };
+}
+
+/* --- やさしい一言 --- */
+const MSG = {
+  wake:   ["おはよう。起きられたね、えらい","今日がはじまったね","ぽちっと、いい目覚めだ"],
+  workStart:["ぽちっ。むりせず、ぼちぼちね","いってらっしゃい","はじめられた、それで十分"],
+  workEnd:["おつかれさま。よくやったね","ひと区切り、えらい","ここまでで大丈夫だよ"],
+  sleep:  ["おやすみ。今日もおつかれさま","ぽちは夜が元気。ゆっくりね","一日を閉じられたね"],
+  idle:   ["こんにちは。ぽちだよ","きょうも、そばにいるよ","押したくなったら押してね"]
+};
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function say(t){ document.getElementById('speech').textContent = t; }
+
+/* --- 打刻：起床 --- */
+function toggleWake(){
+  const {all,key,day} = today();
+  if(!day.wake){ day.wake = Date.now(); saveAll(all); say(pick(MSG.wake)); }
+  render();
+}
+function clearWake(){ const {all,key,day}=today(); day.wake=null; saveAll(all); render(); }
+
+/* --- 打刻：作業（はじめる/おわる トグル） --- */
+function toggleWork(){
+  const {all,key,day} = today();
+  const open = day.work.find(s => s.end === null);
+  if(open){ open.end = Date.now(); saveAll(all); say(pick(MSG.workEnd)); }
+  else { day.work.push({start:Date.now(), end:null}); saveAll(all); say(pick(MSG.workStart)); }
+  render();
+}
+
+/* --- 打刻：就寝（押すと開いている作業も静かに閉じる） --- */
+function toggleSleep(){
+  const {all,key,day} = today();
+  if(!day.sleep){
+    const open = day.work.find(s => s.end === null);
+    if(open) open.end = Date.now(); // 作業の押し忘れを責めず静かに閉じる
+    day.sleep = Date.now(); saveAll(all); say(pick(MSG.sleep));
+  }
+  render();
+}
+function clearSleep(){ const {all,key,day}=today(); day.sleep=null; saveAll(all); render(); }
+
+/* --- フクロウのSVG（気分で目や姿勢が変わる） --- */
+function owlSVG(mood){
+  // mood: "day"（おねむ気味）/ "night"（元気）/ "sleep"（就寝済み・目を閉じる）
+  const eyeOpen = (open)=> open
+    ? `<circle cx="CX" cy="52" r="13" fill="#fff" stroke="#8B5E3C" stroke-width="2"/>
+       <circle cx="CX" cy="52" r="9" fill="#F2B705"/>
+       <circle cx="CX" cy="52" r="4.5" fill="#3A2A1A"/>
+       <circle cx="CXH" cy="49" r="2" fill="#fff"/>`
+    : `<path d="M CXA 52 q 8 6 16 0" stroke="#8B5E3C" stroke-width="2.4" fill="none" stroke-linecap="round"/>`;
+  const leftEye = eyeOpen(mood!=="sleep").replace(/CXH/g,"45").replace(/CXA/g,"35").replace(/CX/g,"48");
+  const rightEye= eyeOpen(mood!=="sleep").replace(/CXH/g,"69").replace(/CXA/g,"61").replace(/CX/g,"72");
+  return `
+    <ellipse cx="60" cy="108" rx="26" ry="6" fill="rgba(139,94,60,.15)"/>
+    <!-- 体 -->
+    <path d="M60 22 C34 22 24 44 24 66 C24 92 40 104 60 104 C80 104 96 92 96 66 C96 44 86 22 60 22 Z" fill="#8B5E3C"/>
+    <!-- お腹 -->
+    <path d="M60 46 C46 46 40 58 40 72 C40 90 50 100 60 100 C70 100 80 90 80 72 C80 58 74 46 60 46 Z" fill="#C89B6E"/>
+    <!-- お腹の斑点 -->
+    <g fill="#8B5E3C" opacity=".5">
+      <circle cx="54" cy="70" r="1.8"/><circle cx="66" cy="70" r="1.8"/>
+      <circle cx="60" cy="78" r="1.8"/><circle cx="52" cy="84" r="1.8"/><circle cx="68" cy="84" r="1.8"/>
+    </g>
+    <!-- 耳（羽角） -->
+    <path d="M34 30 L30 16 L44 26 Z" fill="#7A4F30"/>
+    <path d="M86 30 L90 16 L76 26 Z" fill="#7A4F30"/>
+    <!-- まゆ -->
+    <path d="M38 42 q 10 -6 20 -1" stroke="#7A4F30" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M82 42 q -10 -6 -20 -1" stroke="#7A4F30" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <!-- 目 -->
+    ${leftEye}
+    ${rightEye}
+    <!-- くちばし -->
+    <path d="M60 60 L55 66 L65 66 Z" fill="#E08C4A"/>
+    <!-- 羽 -->
+    <path d="M26 66 q -4 14 6 24 q 2 -14 0 -24 Z" fill="#7A4F30"/>
+    <path d="M94 66 q 4 14 -6 24 q -2 -14 0 -24 Z" fill="#7A4F30"/>
+  `;
+}
+
+/* --- イラスト差し替え：images/owl_{mood}.png があればそれを、なければSVGを表示 ---
+   なつみさんの手描き（透明PNG・正方形）を images/ に3枚入れると自動で切り替わる。
+   ファイル名： owl_day.png（おねむ）/ owl_night.png（元気）/ owl_sleep.png（おやすみ） */
+window.owlImgOK = {}; // mood毎： true=画像あり / false=画像なし→SVG
+function owlMarkup(mood){
+  return '<svg class="owl" viewBox="0 0 120 120" aria-label="コキンメフクロウのぽち">'+owlSVG(mood)+'</svg>';
+}
+window.owlFallback = function(img, mood){ img.outerHTML = owlMarkup(mood); };
+function renderOwl(mood){
+  const holder = document.getElementById('owl-holder');
+  if(window.owlImgOK[mood] === false){ holder.innerHTML = owlMarkup(mood); return; } // 画像なしと判明済み
+  holder.innerHTML =
+    '<img class="owl owl-img" alt="コキンメフクロウのぽち" src="images/owl_'+mood+'.png?v=1"'
+    + ' onload="window.owlImgOK[\''+mood+'\']=true"'
+    + ' onerror="window.owlImgOK[\''+mood+'\']=false;owlFallback(this,\''+mood+'\')">';
+}
+
+/* --- 画面更新 --- */
+function render(){
+  const {day} = today();
+  const now = new Date();
+
+  // 日付
+  const wd = ["日","月","火","水","木","金","土"][now.getDay()];
+  document.getElementById('date').textContent = `${now.getMonth()+1}/${now.getDate()}`;
+  document.getElementById('weekday').textContent = `${wd}曜日`;
+
+  // フクロウの気分（就寝済み→眠る／夜→元気／昼→おねむ）
+  const h = now.getHours();
+  let mood = (h>=20 || h<5) ? "night" : "day";
+  if(day.sleep) mood = "sleep";
+  renderOwl(mood);
+  document.getElementById('mood').textContent =
+    mood==="sleep" ? "ぽちも おやすみ中…" :
+    mood==="night" ? "ぽちは夜が元気！" : "ぽちは ちょっとおねむ";
+
+  // 起床
+  const wakeBtn=document.getElementById('wake-btn'), wakeUndo=document.getElementById('wake-undo');
+  if(day.wake){
+    document.getElementById('wake-sub').textContent = `${fmtTime(day.wake)} に起きたよ`;
+    wakeBtn.textContent="済"; wakeBtn.classList.add('done'); wakeUndo.style.display="inline";
+  }else{
+    document.getElementById('wake-sub').textContent = "まだだよ";
+    wakeBtn.textContent="押す"; wakeBtn.classList.remove('done'); wakeUndo.style.display="none";
+  }
+
+  // 作業
+  const workBtn=document.getElementById('work-btn');
+  const open = day.work.find(s=>s.end===null);
+  const done = day.work.filter(s=>s.end!==null).length;
+  if(open){
+    workBtn.textContent="おわる"; workBtn.classList.add('working');
+    document.getElementById('work-sub').textContent = `${fmtTime(open.start)} から 作業中…`;
+  }else{
+    workBtn.textContent="はじめる"; workBtn.classList.remove('working');
+    document.getElementById('work-sub').textContent =
+      done>0 ? `きょう ${done}回 区切ったよ` : "きょうはまだ";
+  }
+
+  // 就寝
+  const sleepBtn=document.getElementById('sleep-btn'), sleepUndo=document.getElementById('sleep-undo');
+  if(day.sleep){
+    document.getElementById('sleep-sub').textContent = `${fmtTime(day.sleep)} に一日を閉じたよ`;
+    sleepBtn.textContent="済"; sleepBtn.classList.add('done'); sleepUndo.style.display="inline";
+  }else{
+    document.getElementById('sleep-sub').textContent = "まだだよ";
+    sleepBtn.textContent="押す"; sleepBtn.classList.remove('done'); sleepUndo.style.display="none";
+  }
+
+  // リズム帯
+  const events=[];
+  if(day.wake) events.push({t:day.wake, ico:"☀️", txt:"起きた"});
+  day.work.forEach(s=>{
+    events.push({t:s.start, ico:"💻", txt:"作業はじめる"});
+    if(s.end) events.push({t:s.end, ico:"✅", txt:"作業おわる"});
+  });
+  if(day.sleep) events.push({t:day.sleep, ico:"🌙", txt:"就寝"});
+  events.sort((a,b)=>a.t-b.t);
+
+  const tl=document.getElementById('timeline');
+  if(events.length===0){
+    tl.innerHTML = `<li><div class="empty">まだ何も押していないよ。<br>ひとつ押せたら、それで十分。</div></li>`;
+  }else{
+    tl.innerHTML = events.map(e=>
+      `<li><span class="t">${fmtTime(e.t)}</span><span>${e.ico}</span><span>${e.txt}</span></li>`
+    ).join("");
+  }
+}
+
+/* 起動時 */
+say(pick(MSG.idle));
+render();
+// 1分ごとにフクロウの気分と日付を更新
+setInterval(render, 60000);
+</script>
+</body>
+</html>

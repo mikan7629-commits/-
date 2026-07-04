@@ -96,10 +96,61 @@
   .empty{color:var(--ink-soft);font-size:14px;text-align:center;padding:10px 0;line-height:1.6;}
 
   .foot{text-align:center;margin-top:20px;font-size:11px;color:var(--ink-soft);line-height:1.6;}
+
+  /* 過去の記録を見るボタン */
+  .history-open{
+    margin-top:16px;width:100%;border:none;border-radius:16px;padding:14px;
+    background:var(--card);color:var(--coral-deep);font-size:15px;font-weight:700;
+    box-shadow:var(--shadow);cursor:pointer;font-family:inherit;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .history-open:active{transform:translateY(2px);}
+
+  /* 履歴ビュー */
+  .hist-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .back-btn{
+    border:none;background:var(--card);color:var(--ink);border-radius:12px;
+    padding:9px 14px;font-size:14px;font-weight:700;box-shadow:var(--shadow);
+    cursor:pointer;font-family:inherit;
+  }
+  .back-btn:active{transform:translateY(2px);}
+  .hist-title{font-size:18px;font-weight:700;color:var(--coral-deep);}
+
+  .day-card{
+    background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:12px;
+    box-shadow:var(--shadow);
+  }
+  .day-card .d-date{font-size:15px;font-weight:700;margin-bottom:10px;
+    display:flex;align-items:center;gap:8px;}
+  .day-card .d-today{font-size:11px;background:var(--coral);color:#fff;
+    border-radius:8px;padding:1px 8px;font-weight:700;}
+  .d-rows{display:flex;flex-direction:column;gap:6px;}
+  .d-row{display:flex;align-items:center;gap:10px;font-size:14px;}
+  .d-row .r-ico{width:22px;text-align:center;}
+  .d-row .r-lbl{flex:1;}
+  .d-row .r-val{font-variant-numeric:tabular-nums;color:var(--brown);font-weight:700;}
+  .d-row .r-none{color:var(--ink-soft);font-weight:400;}
+
+  /* バックアップ */
+  .backup{background:var(--card);border-radius:16px;padding:16px;
+    box-shadow:var(--shadow);margin-top:22px;}
+  .backup h2{font-size:14px;margin:0 0 6px;color:var(--coral-deep);letter-spacing:.06em;}
+  .backup p{font-size:12px;color:var(--ink-soft);margin:0 0 12px;line-height:1.6;}
+  .backup .b-row{display:flex;gap:10px;}
+  .backup .b-btn{flex:1;border:none;border-radius:12px;padding:11px;font-size:14px;
+    font-weight:700;cursor:pointer;font-family:inherit;}
+  .backup .b-copy{background:var(--coral);color:#fff;box-shadow:0 3px 0 var(--coral-deep);}
+  .backup .b-restore{background:#EFE1CE;color:var(--brown);box-shadow:0 3px 0 #DDCBB2;}
+  .backup .b-btn:active{transform:translateY(2px);}
+  .backup textarea{width:100%;margin-top:12px;border:1px solid var(--line);border-radius:12px;
+    padding:10px;font-size:12px;font-family:inherit;resize:vertical;min-height:72px;
+    color:var(--ink);background:var(--cream);}
+  .backup .b-msg{font-size:12px;color:var(--coral-deep);margin-top:8px;min-height:16px;
+    font-weight:600;line-height:1.5;}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="home-view">
   <div class="head">
     <div class="brand">ぽち</div>
     <div class="date" id="date">--</div>
@@ -154,9 +205,36 @@
     <ul class="timeline" id="timeline"></ul>
   </div>
 
+  <button class="history-open" onclick="showHistory()">📖 過去の記録を見る</button>
+
   <div class="foot">
     記録はこの端末の中だけに保存されます。<br>
     ノルマも目標時間もありません。押せた日を、そっと肯定するアプリです。
+  </div>
+</div>
+
+<div class="app" id="history-view" style="display:none;">
+  <div class="hist-head">
+    <button class="back-btn" onclick="showHome()">← もどる</button>
+    <div class="hist-title">これまでの記録</div>
+  </div>
+
+  <div id="hist-list"></div>
+
+  <div class="backup">
+    <h2>── バックアップ ──</h2>
+    <p>記録はこの端末の中だけにあります。ときどきコピーして、自分あてのメモやLINEに貼っておくと安心です。機種変更やURLが変わっても、貼りつけて戻せます。</p>
+    <div class="b-row">
+      <button class="b-btn b-copy" onclick="backupCopy()">記録をコピー</button>
+      <button class="b-btn b-restore" onclick="toggleRestore()">記録を復元</button>
+    </div>
+    <textarea id="backup-box" style="display:none;" placeholder="ここにコピーした記録を貼りつけてね"></textarea>
+    <button class="b-btn b-restore" id="restore-go" style="display:none;width:100%;margin-top:10px;" onclick="backupRestore()">この内容で復元する</button>
+    <div class="b-msg" id="backup-msg"></div>
+  </div>
+
+  <div class="foot">
+    復元すると、いまの記録はコピーした時点の内容に置きかわります。
   </div>
 </div>
 
@@ -359,6 +437,115 @@ function render(){
       `<li><span class="t">${fmtTime(e.t)}</span><span>${e.ico}</span><span>${e.txt}</span></li>`
     ).join("");
   }
+}
+
+/* ================= 履歴ビュー ================= */
+function showHistory(){
+  document.getElementById('home-view').style.display = "none";
+  document.getElementById('history-view').style.display = "block";
+  renderHistory();
+  window.scrollTo(0,0);
+}
+function showHome(){
+  document.getElementById('history-view').style.display = "none";
+  document.getElementById('home-view').style.display = "block";
+  render();
+  window.scrollTo(0,0);
+}
+
+function renderHistory(){
+  const all = loadAll();
+  const keys = Object.keys(all).sort().reverse(); // 新しい日が上
+  const todayKey = logicalDate();
+  const list = document.getElementById('hist-list');
+
+  if(keys.length === 0){
+    list.innerHTML = `<div class="day-card"><div class="empty">まだ記録はないよ。<br>ひとつ押せた日から、ここに残っていくよ。</div></div>`;
+    return;
+  }
+
+  list.innerHTML = keys.map(k=>{
+    const day = all[k] || {};
+    const work = Array.isArray(day.work) ? day.work : [];
+    const parts = k.split('-').map(Number);
+    const wd = ["日","月","火","水","木","金","土"][new Date(parts[0], parts[1]-1, parts[2]).getDay()];
+    const isToday = (k === todayKey);
+
+    const wakeVal  = day.wake  ? `<span class="r-val">${fmtTime(day.wake)}</span>`  : `<span class="r-none">—</span>`;
+    const sleepVal = day.sleep ? `<span class="r-val">${fmtTime(day.sleep)}</span>` : `<span class="r-none">—</span>`;
+    const doneCount = work.filter(s=>s.end!==null).length;
+    const hasOpen   = work.some(s=>s.end===null);
+    let workVal;
+    if(doneCount>0)     workVal = `<span class="r-val">${doneCount}回</span>`;
+    else if(hasOpen)    workVal = `<span class="r-val">作業中</span>`;
+    else                workVal = `<span class="r-none">—</span>`;
+
+    return `<div class="day-card">
+      <div class="d-date">${parts[1]}/${parts[2]}（${wd}）${isToday?'<span class="d-today">きょう</span>':''}</div>
+      <div class="d-rows">
+        <div class="d-row"><span class="r-ico">☀️</span><span class="r-lbl">起きた</span>${wakeVal}</div>
+        <div class="d-row"><span class="r-ico">💻</span><span class="r-lbl">作業</span>${workVal}</div>
+        <div class="d-row"><span class="r-ico">🌙</span><span class="r-lbl">就寝</span>${sleepVal}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ================= バックアップ ================= */
+function backupMsg(t){ document.getElementById('backup-msg').textContent = t || ""; }
+
+function backupCopy(){
+  const data = localStorage.getItem(STORE_KEY) || "{}";
+  const box = document.getElementById('backup-box');
+  box.style.display = "block";
+  box.readOnly = false;
+  box.value = data;
+  document.getElementById('restore-go').style.display = "none";
+  box.focus(); box.select();
+  let ok = false;
+  try{ ok = document.execCommand('copy'); }catch(e){}
+  if(navigator.clipboard){ navigator.clipboard.writeText(data).then(()=>{ ok = true; }).catch(()=>{}); }
+  backupMsg(ok
+    ? "コピーしたよ。メモやLINEの自分あてに貼って保管してね"
+    : "下の文字を長押しで全部コピーして、メモに貼ってね");
+}
+
+function toggleRestore(){
+  const box = document.getElementById('backup-box');
+  box.style.display = "block";
+  box.readOnly = false;
+  box.value = "";
+  document.getElementById('restore-go').style.display = "block";
+  backupMsg("コピーした記録を下に貼りつけて「この内容で復元する」を押してね");
+  box.focus();
+}
+
+function backupRestore(){
+  const box = document.getElementById('backup-box');
+  const txt = box.value.trim();
+  if(!txt){ backupMsg("復元する記録を貼りつけてね"); return; }
+
+  let parsed;
+  try{ parsed = JSON.parse(txt); }
+  catch(e){ backupMsg("うまく読み取れませんでした。コピーした文字が最初から最後まで入っているか確認してね"); return; }
+
+  if(typeof parsed !== "object" || parsed === null || Array.isArray(parsed)){
+    backupMsg("記録の形がちがうみたい。もう一度コピーからやり直してね"); return;
+  }
+  const days = Object.values(parsed);
+  const looksOk = days.every(d => d && typeof d === "object" && ("wake" in d) && ("work" in d) && ("sleep" in d));
+  if(days.length > 0 && !looksOk){
+    backupMsg("記録の形がちがうみたい。もう一度コピーからやり直してね"); return;
+  }
+
+  if(!confirm("いまの記録を、貼りつけた内容に置きかえます。よろしいですか？")) return;
+
+  saveAll(parsed);
+  box.style.display = "none";
+  document.getElementById('restore-go').style.display = "none";
+  backupMsg("復元したよ。おかえり");
+  renderHistory();
+  render(); // ホーム側も最新に
 }
 
 /* 起動時 */

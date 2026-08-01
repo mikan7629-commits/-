@@ -39,6 +39,14 @@
   }
   .app{width:100%;max-width:420px;}
 
+  /* おためしモードの帯（?demo=1 のときだけ表示） */
+  .demo-bar{
+    background:#FFF1DE; border:1px solid var(--line); color:#8A6B4F;
+    border-radius:14px; padding:9px 12px; margin:0 0 14px;
+    font-size:12.5px; line-height:1.6; text-align:center;
+  }
+  .demo-bar a{ color:var(--coral-deep); font-weight:700; text-decoration:none; }
+
   /* ヘッダー */
   .head{text-align:center;margin-bottom:14px;}
   .brand{font-size:15px;letter-spacing:.15em;color:var(--coral-deep);font-weight:700;}
@@ -151,6 +159,10 @@
 </head>
 <body>
 <div class="app" id="home-view">
+  <div class="demo-bar" data-demo-bar hidden>
+    🦉 おためしモードだよ。押しても記録はのこらないよ<br>
+    <a href="./">ふつうに つかう →</a>
+  </div>
   <div class="head">
     <div class="brand">ぽち</div>
     <div class="date" id="date">--</div>
@@ -214,6 +226,10 @@
 </div>
 
 <div class="app" id="history-view" style="display:none;">
+  <div class="demo-bar" data-demo-bar hidden>
+    🦉 おためしモードだよ。押しても記録はのこらないよ<br>
+    <a href="./">ふつうに つかう →</a>
+  </div>
   <div class="hist-head">
     <button class="back-btn" onclick="showHome()">← もどる</button>
     <div class="hist-title">これまでの記録</div>
@@ -258,12 +274,76 @@ function fmtTime(ts){
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
+/* ---------- おためしモード（URLに ?demo=1 が付いた時だけ） ----------
+   ポートフォリオHP等から見に来た人に、中身が見える状態で触ってもらうためのモード。
+   このモードでは localStorage を読みも書きもしない。押した内容はページを閉じるまでの
+   一時的な記憶（demoStore）にだけ入る。ふだんの記録には一切さわらない。      */
+const DEMO = (function(){
+  try{ return new URLSearchParams(location.search).has('demo'); }
+  catch(e){ return false; }
+})();
+
+let demoStore = null; // おためしモード中だけメモリに持つ（保存はしない）
+
+function demoData(){
+  // 論理的な「きょう」（朝4時始まり）を基準に、見本の記録を組み立てる
+  const base = new Date();
+  if(base.getHours() < 4) base.setDate(base.getDate() - 1);
+  base.setHours(12,0,0,0); // 正午基準にして日付のずれを防ぐ
+
+  const keyOf = (ago)=>{
+    const d = new Date(base); d.setDate(d.getDate() - ago);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const tsOf = (ago,h,m)=>{
+    const d = new Date(base); d.setDate(d.getDate() - ago); d.setHours(h,m,0,0);
+    return d.getTime();
+  };
+
+  // 押せた日も、押せなかった日もそのまま並べる（責めない思想のとおり）
+  const SEED = [
+    {ago:1, wake:[7,40], work:[[10,0,12,10],[14,30,16,0]], sleep:[23,10]},
+    {ago:2, wake:[8,10], work:[[13,0,14,20]],              sleep:[22,40]},
+    {ago:3, wake:[9,30], work:[],                          sleep:[23,50]},
+    {ago:4, wake:[7,10], work:[[9,40,11,30],[15,0,16,15]], sleep:[22,20]},
+    {ago:5, wake:null,   work:[],                          sleep:null},
+    {ago:6, wake:[8,0],  work:[[10,30,12,0]],              sleep:[23,0]},
+    {ago:7, wake:[7,50], work:[[9,0,10,40],[13,30,15,10]], sleep:[22,50]},
+  ];
+
+  const out = {};
+  SEED.forEach(s=>{
+    out[keyOf(s.ago)] = {
+      wake:  s.wake  ? tsOf(s.ago, s.wake[0],  s.wake[1])  : null,
+      work:  s.work.map(w=>({ start: tsOf(s.ago,w[0],w[1]), end: tsOf(s.ago,w[2],w[3]) })),
+      sleep: s.sleep ? tsOf(s.ago, s.sleep[0], s.sleep[1]) : null
+    };
+  });
+
+  // きょうの分は「今」より前の時刻にして、いつ見ても自然に見えるようにする。
+  // 就寝は空にしておき、見に来た人が押して試せるようにする。
+  const now = Date.now(), MIN = 60*1000;
+  out[logicalDate()] = {
+    wake: now - 180*MIN,
+    work: [{ start: now - 90*MIN, end: now - 30*MIN }],
+    sleep: null
+  };
+  return out;
+}
+
 /* --- 保存・読み込み --- */
 function loadAll(){
+  if(DEMO){ // おためしモードは保存データを読まない
+    if(!demoStore) demoStore = demoData();
+    return demoStore;
+  }
   try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
   catch(e){ return {}; }
 }
-function saveAll(all){ localStorage.setItem(STORE_KEY, JSON.stringify(all)); }
+function saveAll(all){
+  if(DEMO){ demoStore = all; return; } // おためしモードでは保存しない（ふだんの記録を守る）
+  localStorage.setItem(STORE_KEY, JSON.stringify(all));
+}
 function today(){
   const all = loadAll();
   const key = logicalDate();
@@ -495,7 +575,8 @@ function renderHistory(){
 function backupMsg(t){ document.getElementById('backup-msg').textContent = t || ""; }
 
 function backupCopy(){
-  const data = localStorage.getItem(STORE_KEY) || "{}";
+  // おためしモードでは保存データを読まず、見本のほうを写す
+  const data = DEMO ? JSON.stringify(loadAll()) : (localStorage.getItem(STORE_KEY) || "{}");
   const box = document.getElementById('backup-box');
   box.style.display = "block";
   box.readOnly = false;
@@ -549,6 +630,9 @@ function backupRestore(){
 }
 
 /* 起動時 */
+if(DEMO){
+  document.querySelectorAll('[data-demo-bar]').forEach(el=> el.hidden = false);
+}
 say(pick(MSG.idle));
 render();
 // 1分ごとにフクロウの気分と日付を更新
